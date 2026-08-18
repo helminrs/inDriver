@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>inDriver App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body, html { height: 100%; margin: 0; background-color: #121212; color: #ffffff; font-family: system-ui, sans-serif; overflow: hidden; }
+        #map { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 0; }
+        .app-shell { display: flex; flex-direction: column; height: 100vh; width: 100vw; position: relative; z-index: 10; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="app-shell justify-between">
+    <header class="interactive m-3 flex justify-between items-center p-3.5 bg-[#181a1c]/95 backdrop-blur-md rounded-2xl border border-zinc-800 shadow-xl">
+        <button id="menu-btn" class="text-white text-lg p-2"><i class="fa-solid fa-bars"></i></button>
+        <span id="header-title" class="text-xs font-bold text-[#c6ff00] uppercase tracking-wider">inDriver</span>
+        <button onclick="toggleRole()" id="switch-btn" class="text-[10px] bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md">Switch</button>
+    </header>
+
+    <div class="interactive bg-[#16181a]/95 backdrop-blur-2xl border-t border-zinc-800 rounded-t-3xl p-5 shadow-2xl max-h-[75vh] overflow-y-auto" id="ui-card"></div>
+
+    <div id="sidebar" class="interactive fixed inset-y-0 left-0 z-50 w-4/5 max-w-sm bg-[#181a1c] transform -translate-x-full transition-transform duration-300 flex flex-col justify-between shadow-2xl border-r border-zinc-800">
+        <div class="p-5 bg-[#121416] border-b border-zinc-800 flex items-center space-x-3">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" class="w-12 h-12 rounded-full object-cover border border-[#c6ff00]">
+            <div><h3 class="font-bold text-sm text-white">Helmi Nurliansyah</h3><p class="text-xs text-yellow-400"><i class="fa-solid fa-star"></i> 5.00 (53)</p></div>
+        </div>
+        <div class="py-2 space-y-1 flex-1">
+            <a href="#" onclick="toggleRole(); closeSidebar();" class="flex items-center px-6 py-3 text-sm text-[#c6ff00] font-bold"><i class="fa-solid fa-rotate w-6"></i> Ganti Mode Aplikasi</a>
+        </div>
+    </div>
+    <div id="backdrop" class="interactive fixed inset-0 z-40 bg-black/60 hidden"></div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    const firebaseConfig = { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", databaseURL: "https://YOUR_DATABASE-default-rtdb.firebaseio.com", projectId: "YOUR_PROJECT_ID" };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    let myRole = urlParams.get('role') || 'passenger';
+    let currentBidPrice = 8800;
+    let localOrder = { status: 'idle', price: 8800 };
+
+    const map = L.map('map', { zoomControl: false }).setView([-7.0337, 107.5833], 14);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+    L.marker([-7.0337, 107.5833], { icon: L.divIcon({ className: 'pj', html: '<div style="background:#ef4444; color:#fff; padding:2px 6px; border-radius:10px; font-size:9px; font-weight:bold;">Jemput</div>' }) }).addTo(map);
+    L.marker([-7.0450, 107.6000], { icon: L.divIcon({ className: 'pt', html: '<div style="background:#3b82f6; color:#fff; padding:2px 6px; border-radius:10px; font-size:9px; font-weight:bold;">Tujuan</div>' }) }).addTo(map);
+
+    function toggleRole() {
+        myRole = (myRole === 'passenger') ? 'driver' : 'passenger';
+        window.history.replaceState({}, '', `?role=${myRole}`);
+        renderUI(localOrder);
+    }
+
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('backdrop').classList.add('hidden');
+    }
+
+    // Render instan agar kartu bawah langsung muncul tanpa jeda
+    renderUI(localOrder);
+
+    // Sinkronisasi data real-time dengan Firebase
+    db.ref('active_order').on('value', (snapshot) => {
+        localOrder = snapshot.val() || { status: 'idle', price: 8800 };
+        renderUI(localOrder);
+    });
+
+    function renderUI(order) {
+        const title = document.getElementById('header-title');
+        const card = document.getElementById('ui-card');
+        const switchBtn = document.getElementById('switch-btn');
+
+        if (myRole === 'passenger') {
+            title.innerText = "MODE PENUMPANG";
+            switchBtn.innerText = "Ke Driver";
+            switchBtn.className = "text-[10px] bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md";
+
+            if (!order || order.status === 'idle') {
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex space-x-2 pb-1">
+                            <div class="bg-[#212325] border border-[#c6ff00] px-3 py-2 rounded-xl flex items-center space-x-2"><i class="fa-solid fa-motorcycle text-[#c6ff00]"></i><span class="text-xs font-bold text-white">inMotor</span></div>
+                        </div>
+                        <div class="bg-[#212325] p-3 rounded-xl border border-zinc-800 space-y-1 text-xs">
+                            <div class="text-zinc-300"><i class="fa-solid fa-circle-dot text-[#c6ff00] mr-2"></i> <b>Dari:</b> Jl. Desa Tarajusari</div>
+                            <div class="text-zinc-300"><i class="fa-solid fa-location-dot text-red-500 mr-2"></i> <b>Ke:</b> PT Weharima Langgeng Lestari</div>
+                        </div>
+                        <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-800 text-center space-y-2">
+                            <p class="text-xs text-zinc-400">Tarif yang direkomendasikan</p>
+                            <div class="flex items-center justify-center space-x-4">
+                                <button onclick="changePrice(-1000)" class="w-10 h-10 bg-[#2b2e31] text-white font-bold rounded-full text-lg">-</button>
+                                <span class="text-2xl font-black text-white">Rp ${currentBidPrice.toLocaleString('id-ID')}</span>
+                                <button onclick="changePrice(1000)" class="w-10 h-10 bg-[#2b2e31] text-white font-bold rounded-full text-lg">+</button>
+                            </div>
+                        </div>
+                        <button onclick="passengerPublish()" class="w-full bg-[#c6ff00] text-black font-bold py-3.5 rounded-2xl text-sm shadow-xl">Cari tawaran</button>
+                    </div>`;
+            } else if (order.status === 'searching') {
+                card.innerHTML = `
+                    <div class="text-center py-4 space-y-3">
+                        <i class="fa-solid fa-radar animate-spin text-[#c6ff00] text-2xl"></i>
+                        <p class="text-xs text-zinc-300">Mencari pengemudi terdekat...</p>
+                        <h3 class="text-lg font-black text-white">Rp ${(order.price || currentBidPrice).toLocaleString('id-ID')}</h3>
+                        <button onclick="passengerCancel()" class="bg-red-500/20 text-red-400 text-xs font-bold px-4 py-2 rounded-xl">Batalkan</button>
+                    </div>`;
+            } else if (order.status === 'driver_offered') {
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <h4 class="font-bold text-sm text-white">Pilih pengemudi</h4>
+                        <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-700 space-y-3">
+                            <div class="flex justify-between items-center"><span class="text-sm font-bold text-white">Rp ${(order.price || currentBidPrice).toLocaleString('id-ID')}</span><span class="bg-[#c6ff00]/20 text-[#c6ff00] text-[10px] px-2 py-0.5 rounded font-bold">Tarif Anda</span></div>
+                            <div class="flex items-center space-x-3">
+                                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" class="w-12 h-12 rounded-full object-cover border border-[#c6ff00]">
+                                <div><h5 class="font-bold text-sm text-white">HELMI <span class="text-xs text-yellow-400"><i class="fa-solid fa-star"></i> 5</span></h5><p class="text-xs text-zinc-300">Honda PCX HYBRID SH</p></div>
+                            </div>
+                            <button onclick="passengerAccept()" class="w-full bg-[#c6ff00] text-black font-bold py-3 rounded-xl text-xs">Terima Driver Ini</button>
+                        </div>
+                    </div>`;
+            } else {
+                card.innerHTML = `<div class="bg-[#212325] p-4 rounded-xl text-center"><p class="text-xs text-[#c6ff00] font-bold"><i class="fa-solid fa-motorcycle"></i> Perjalanan Aktif!</p></div>`;
+            }
+        } else {
+            title.innerText = "MODE PENGEMUDI (ONLINE)";
+            switchBtn.innerText = "Ke Penumpang";
+            switchBtn.className = "text-[10px] bg-blue-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md";
+
+            if (!order || order.status === 'idle') {
+                card.innerHTML = `
+                    <div class="text-center py-6 space-y-2">
+                        <i class="fa-solid fa-radar animate-spin text-[#c6ff00] text-3xl"></i>
+                        <p class="text-xs text-zinc-400">Radar Aktif: Mencari order di sekitar...</p>
+                    </div>`;
+            } else if (order.status === 'searching') {
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-700 space-y-3">
+                            <div class="flex justify-between items-center"><span class="text-xs text-zinc-400">Orderan Masuk Realtime</span><span class="text-sm font-bold text-[#c6ff00]">Rp ${(order.price || currentBidPrice).toLocaleString('id-ID')}</span></div>
+                            <p class="text-xs font-bold text-white">Jl. Desa Tarajusari -> PT Weharima</p>
+                            <button onclick="driverOffer()" class="w-full bg-[#c6ff00] text-black font-bold py-3 rounded-xl text-xs shadow-lg">Kirim Tawaran / Terima Order</button>
+                        </div>
+                    </div>`;
+            } else if (order.status === 'driver_offered') {
+                card.innerHTML = `<div class="text-center py-4"><i class="fa-solid fa-spinner animate-spin text-[#c6ff00] text-xl"></i><p class="text-xs text-white mt-2">Menunggu konfirmasi penumpang...</p></div>`;
+            } else if (order.status === 'accepted') {
+                card.innerHTML = `<div class="bg-[#212325] p-4 rounded-xl text-center space-y-2"><p class="text-xs text-[#c6ff00] font-bold">Orderan Diterima!</p><a href="https://www.google.com/maps/dir/?api=1&destination=-7.0337,107.5833&travelmode=driving" target="_blank" class="block w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Navigasi Google Maps</a></div>`;
+            }
+        }
+    }
+
+    function changePrice(amt) { 
+        currentBidPrice += amt; 
+        if(currentBidPrice < 5000) currentBidPrice = 5000; 
+        renderUI(localOrder);
+    }
+    
+    function passengerPublish() { 
+        db.ref('active_order').set({ price: currentBidPrice, status: 'searching' }); 
+    }
+    
+    function passengerCancel() { 
+        db.ref('active_order').set({ status: 'idle', price: currentBidPrice }); 
+    }
+    
+    function driverOffer() { 
+        db.ref('active_order/status').set('driver_offered'); 
+    }
+    
+    function passengerAccept() { 
+        db.ref('active_order/status').set('accepted'); 
+    }
+
+    document.getElementById('menu-btn').addEventListener('click', () => { document.getElementById('sidebar').classList.remove('-translate-x-full'); document.getElementById('backdrop').classList.remove('hidden'); });
+    document.getElementById('backdrop').addEventListener('click', () => { closeSidebar(); });
+</script>
+</body>
+</html>
