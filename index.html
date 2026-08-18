@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>inDriver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body, html { height: 100%; margin: 0; background-color: #121212; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; }
+        .app-container { display: flex; flex-direction: column; height: 100vh; width: 100vw; position: relative; overflow: hidden; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- Top Header -->
+    <header class="absolute top-0 left-0 right-0 z-20 flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent">
+        <button id="menu-btn" class="text-white text-xl p-2 focus:outline-none"><i class="fa-solid fa-bars"></i></button>
+        <div class="flex items-center space-x-2 bg-black/50 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10">
+            <span id="role-badge" class="w-3 h-3 rounded-full bg-lime-400 animate-pulse"></span>
+            <span id="header-title" class="text-xs font-bold text-white uppercase tracking-wider">Mode Pengemudi (Online)</span>
+        </div>
+        <button id="mode-switch-top" onclick="toggleAppMode()" class="text-xs bg-zinc-800 text-lime-400 font-bold px-3 py-1.5 rounded-xl border border-lime-400/30">Switch Mode</button>
+    </header>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- PWA Install Banner -->
+    <div id="pwa-install-container" class="absolute top-20 left-4 right-4 z-25 hidden">
+        <div class="bg-zinc-900/95 border border-lime-400/30 p-3 rounded-xl flex justify-between items-center shadow-xl backdrop-blur-md">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-mobile-screen-button text-lime-400 text-2xl"></i>
+                <div>
+                    <p class="text-xs font-bold text-white">Install Aplikasi inDriver</p>
+                    <p class="text-[10px] text-zinc-400">Akses PWA cepat & performa penuh</p>
+                </div>
+            </div>
+            <button id="install-pwa-btn" class="bg-lime-400 text-black text-xs font-bold px-3 py-1.5 rounded-lg">Install</button>
+        </div>
+    </div>
+
+    <!-- Interactive Bottom Card (Dinamis Sesuai Mode & Status Order) -->
+    <div id="ui-overlay" class="absolute bottom-0 left-0 right-0 z-20 bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800 rounded-t-3xl p-5 shadow-2xl transition-all duration-300">
+        <!-- Diisi secara dinamis oleh JavaScript -->
+    </div>
+
+    <!-- Sidebar Drawer (Menu Lengkap InDrive Asli) -->
+    <div id="sidebar-drawer" class="fixed inset-y-0 left-0 z-50 w-4/5 max-w-sm bg-zinc-900 transform -translate-x-full transition-transform duration-300 flex flex-col shadow-2xl border-r border-zinc-800">
+        <div class="p-6 bg-zinc-950 border-b border-zinc-800 flex items-center space-x-4">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" alt="Profile" class="w-14 h-14 rounded-full object-cover border-2 border-lime-400">
+            <div>
+                <h3 class="font-bold text-base text-white">Helmi Nurliansyah</h3>
+                <p class="text-xs text-yellow-400 flex items-center mt-0.5"><i class="fa-solid fa-star mr-1"></i> 5.00 (5999)</p>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto py-2">
+            <a href="#" onclick="alert('Dompet: Rp4.463,75')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-wallet w-8 text-lime-400"></i> Dompet (Rp0)</a>
+            <a href="#" onclick="alert('Kendaraan: Honda PCX Hybrid')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-motorcycle w-8 text-lime-400"></i> Kendaraan Saya</a>
+            <a href="#" onclick="alert('Riwayat Permintaan: Tersimpan lengkap dengan waktu')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-clock-rotate-left w-8 text-lime-400"></i> Riwayat Permintaan</a>
+            <a href="#" onclick="alert('Pengaturan suara & getar aktif')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-gear w-8 text-lime-400"></i> Pengaturan Suara & Getar</a>
+            <a href="#" onclick="alert('Bantuan & Dukungan inDriver')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-circle-question w-8 text-lime-400"></i> Bantuan & Dukungan</a>
+        </div>
+        <div class="p-4 border-t border-zinc-800">
+            <button onclick="toggleAppMode()" class="w-full bg-lime-400 text-black font-bold py-3 rounded-xl text-sm shadow-md" id="sidebar-mode-btn">Ubah ke Mode Penumpang</button>
+        </div>
+    </div>
+    <div id="sidebar-backdrop" class="fixed inset-0 z-40 bg-black/60 hidden backdrop-blur-sm"></div>
+</div>
+
+<script>
+    let currentMode = 'driver'; // 'driver' atau 'passenger'
+    let orderState = 'idle'; // 'idle', 'waiting_driver', 'bidding', 'otw_pickup', 'arrived', 'delivering', 'completed'
+
+    // Inisialisasi Peta
+    const map = L.map('map', { zoomControl: false }).setView([-7.0337, 107.5833], 15);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+    const driverIcon = L.divIcon({
+        className: 'driver-marker',
+        html: '<div style="background: #a3e635; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #000; box-shadow: 0 0 12px #a3e635;"></div>',
+        iconSize: [18, 18]
+    });
+    const driverMarker = L.marker([-7.0337, 107.5833], { icon: driverIcon }).addTo(map).bindPopup("Posisi Driver Aktif");
+
+    // Efek Suara & Getaran Bervariasi
+    function triggerFeedback(type) {
+        if ("vibrate" in navigator) {
+            if (type === 'near-order') navigator.vibrate([400, 100, 400]); // Getaran panjang ganda (<=2km)
+            else if (type === 'missed') navigator.vibrate(100); // Pendek
+            else if (type === 'accepted' || type === 'arrived') navigator.vibrate([600]); // Getaran panjang tunggal
+        }
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = type === 'near-order' ? 880 : 520;
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+        } catch(e) {}
+    }
+
+    // Render Tampilan Berdasarkan Mode & Status Order
+    function renderApp() {
+        const overlay = document.getElementById('ui-overlay');
+        const headerTitle = document.getElementById('header-title');
+        const sidebarBtn = document.getElementById('sidebar-mode-btn');
+
+        if (currentMode === 'passenger') {
+            headerTitle.innerText = "Mode Penumpang (Pesan Ojek)";
+            sidebarBtn.innerText = "Ubah ke Mode Pengemudi";
+            
+            if (orderState === 'idle') {
+                overlay.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-zinc-400">PILIH LAYANAN</span>
+                            <span class="text-xs text-lime-400 font-bold"><i class="fa-solid fa-location-dot"></i> GPS Aktif</span>
+                        </div>
+                        <div class="bg-zinc-800/80 p-3 rounded-xl border border-zinc-700 flex items-center justify-between">
+                            <span class="text-xs text-zinc-300"><i class="fa-solid fa-map-pin text-lime-400 mr-2"></i> Jemput: GPS Real-time (-7.0337, 107.5833)</span>
+                        </div>
+                        <div class="bg-zinc-800/80 p-3 rounded-xl border border-zinc-700 flex items-center justify-between">
+                            <span class="text-xs text-zinc-300"><i class="fa-solid fa-location-crosshairs text-red-400 mr-2"></i> Tujuan: Alun-Alun Subang</span>
+                        </div>
+                        <div class="flex items-center justify-between bg-zinc-800/50 p-3 rounded-xl border border-zinc-700">
+                            <span class="text-xs text-zinc-300">Tawaran Tarif Anda</span>
+                            <input id="passenger-bid" type="text" value="10.000" class="bg-zinc-900 text-lime-400 font-bold px-3 py-1.5 rounded-lg w-28 text-right border border-zinc-700 focus:outline-none">
+                        </div>
+                        <button onclick="passengerCreateOrder()" class="w-full bg-lime-400 text-black font-bold py-3 rounded-xl text-sm shadow-lg">Cari Driver (Pesan Sekarang)</button>
+                    </div>`;
+            } else if (orderState === 'waiting_driver') {
+                overlay.innerHTML = `
+                    <div class="text-center py-4 space-y-3">
+                        <i class="fa-solid fa-spinner animate-spin text-lime-400 text-3xl"></i>
+                        <h4 class="font-bold text-sm text-white">Mencari Driver Terdekat...</h4>
+                        <p class="text-xs text-zinc-400">Menunggu driver menawar atau menerima pesanan Anda.</p>
+                        <button onclick="simulateDriverBid()" class="w-full bg-zinc-800 border border-lime-400 text-lime-400 font-bold py-2.5 rounded-xl text-xs">Simulasi: Driver Menawar Rp 10.000</button>
+                    </div>`;
+            } else if (orderState === 'bidding') {
+                overlay.innerHTML = `
+                    <div class="space-y-3">
+                        <h4 class="font-bold text-xs text-lime-400 uppercase tracking-wider">Pilih Driver Tersedia (inDrive Style)</h4>
+                        <div class="bg-zinc-800/90 p-3 rounded-xl border border-zinc-700 flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-lime-400 text-black font-bold rounded-full flex items-center justify-center">H</div>
+                                <div>
+                                    <p class="font-bold text-xs text-white">Helmi (Honda PCX)</p>
+                                    <p class="text-[10px] text-yellow-400"><i class="fa-solid fa-star"></i> 5.0 (21 ulasan) - 1.2 km</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-sm text-lime-400">Rp 10.000</p>
+                                <button onclick="passengerSelectDriver()" class="bg-lime-400 text-black text-xs font-bold px-3 py-1.5 rounded-lg mt-1">Pilih Driver</button>
+                            </div>
+                        </div>
+                    </div>`;
+            } else if (orderState === 'otw_pickup') {
+                overlay.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-xl border border-zinc-700 space-y-2">
+                        <p class="text-xs text-lime-400 font-bold animate-pulse"><i class="fa-solid fa-motorcycle"></i> Driver sedang menuju titik jemput Anda...</p>
+                        <p class="text-xs text-zinc-300">Driver: <b>Helmi</b> (PCX - D4990SVC)</p>
+                        <div class="pt-2 flex space-x-2">
+                            <button onclick="alert('Menelpon Driver...')" class="flex-1 bg-zinc-700 text-white font-bold py-2 rounded-xl text-xs"><i class="fa-solid fa-phone"></i> Telepon</button>
+                            <button onclick="alert('Membuka Chat Driver...')" class="flex-1 bg-zinc-700 text-white font-bold py-2 rounded-xl text-xs"><i class="fa-solid fa-comment"></i> Chat</button>
+                        </div>
+                    </div>`;
+            } else if (orderState === 'arrived') {
+                triggerFeedback('arrived');
+                overlay.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-xl border border-lime-400 text-center space-y-2">
+                        <h4 class="font-bold text-sm text-lime-400"><i class="fa-solid fa-circle-check"></i> Driver Telah Tiba di Titik Jemput!</h4>
+                        <p class="text-xs text-zinc-300">Silakan temui driver Anda di lokasi penjemputan.</p>
+                    </div>`;
+            } else if (orderState === 'delivering') {
+                overlay.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-xl border border-zinc-700 text-center space-y-2">
+                        <h4 class="font-bold text-sm text-yellow-400"><i class="fa-solid fa-route"></i> Perjalanan Menuju Tujuan</h4>
+                        <p class="text-xs text-zinc-300">Nikmati perjalanan Anda bersama inDriver.</p>
+                    </div>`;
+            }
+        } else {
+            // Driver Mode
+            headerTitle.innerText = "Mode Pengemudi (Online)";
+            sidebarBtn.innerText = "Ubah ke Mode Penumpang";
+
+            if (orderState === 'idle' || orderState === 'waiting_driver') {
+                overlay.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-zinc-400 uppercase">Menunggu Pesanan Real-time (< 3 km)</span>
+                            <span class="text-xs text-lime-400 font-semibold"><i class="fa-solid fa-radar animate-spin mr-1"></i> Radar Aktif</span>
+                        </div>
+                        <div class="bg-zinc-800/70 p-4 rounded-2xl border border-zinc-700">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="font-bold text-sm text-white">inMotor - Dalam Kota</h4>
+                                    <p class="text-xs text-zinc-400">Jemput: Dekat Lokasi GPS Anda (1.2 km)</p>
+                                </div>
+                                <span class="bg-lime-400/20 text-lime-400 text-xs px-2.5 py-1 rounded-full font-bold">Rp 10.000</span>
+                            </div>
+                            <div class="flex space-x-2 mt-3">
+                                <button onclick="driverAcceptOrder()" class="flex-1 bg-lime-400 text-black font-bold py-2.5 rounded-xl text-xs">Kirim Tawaran / Terima</button>
+                                <button onclick="triggerFeedback('missed')" class="bg-zinc-700 text-zinc-300 px-4 py-2.5 rounded-xl text-xs">Abaikan</button>
+                            </div>
+                        </div>
+                    </div>`;
+                triggerFeedback('near-order');
+            } else if (orderState === 'waiting_driver' || orderState === 'bidding') {
+                overlay.innerHTML = `
+                    <div class="text-center py-3 space-y-2">
+                        <p class="text-xs text-yellow-400 font-bold animate-pulse"><i class="fa-solid fa-spinner animate-spin"></i> Menunggu penumpang memilih tawaran inDriver Anda...</p>
+                    </div>`;
+            } else if (orderState === 'otw_pickup') {
+                overlay.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-2xl border border-zinc-700 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-full bg-lime-400 text-black font-bold flex items-center justify-center">P</div>
+                                <div>
+                                    <h4 class="font-bold text-sm text-white">Penumpang inDriver</h4>
+                                    <p class="text-[10px] text-zinc-400">Tujuan: Alun-Alun Subang</p>
+                                </div>
+                            </div>
+                            <button onclick="driverArrived()" class="bg-lime-400 text-black text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">Saya di Sini</button>
+                        </div>
+                    </div>`;
+            } else if (orderState === 'arrived' || orderState === 'delivering') {
+                overlay.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-2xl border border-zinc-700 space-y-3 text-center">
+                        <h4 class="font-bold text-sm text-lime-400 mb-1"><i class="fa-solid fa-location-arrow"></i> Menuju Titik Tujuan Pengantaran</h4>
+                        <button onclick="driverFinishOrder()" class="w-full bg-lime-400 text-black font-bold py-3 rounded-xl text-xs shadow-lg">Orderan Selesai</button>
+                    </div>`;
+            }
+        }
+    }
+
+    // Alur Transaksi & Sinkronisasi Mode
+    function toggleAppMode() {
+        currentMode = currentMode === 'driver' ? 'passenger' : 'driver';
+        renderApp();
+        drawer.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+    }
+
+    function passengerCreateOrder() {
+        orderState = 'waiting_driver';
+        triggerFeedback('near-order');
+        renderApp();
+    }
+
+    function simulateDriverBid() {
+        orderState = 'bidding';
+        renderApp();
+    }
+
+    function passengerSelectDriver() {
+        orderState = 'otw_pickup';
+        triggerFeedback('accepted');
+        renderApp();
+    }
+
+    function driverAcceptOrder() {
+        orderState = 'bidding';
+        triggerFeedback('accepted');
+        renderApp();
+    }
+
+    function driverArrived() {
+        orderState = 'arrived';
+        triggerFeedback('arrived');
+        renderApp();
+        setTimeout(() => {
+            orderState = 'delivering';
+            renderApp();
+        }, 3000);
+    }
+
+    function driverFinishOrder() {
+        alert("Orderan Selesai! Data lengkap beserta waktu tersimpan di Riwayat Permintaan.");
+        orderState = 'idle';
+        renderApp();
+    }
+
+    // Sidebar Handler
+    const drawer = document.getElementById('sidebar-drawer');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    document.getElementById('menu-btn').addEventListener('click', () => {
+        drawer.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+    });
+    backdrop.addEventListener('click', () => {
+        drawer.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+    });
+
+    // PWA Install Prompt
+    let deferredPrompt;
+    const installContainer = document.getElementById('pwa-install-container');
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installContainer.classList.remove('hidden');
+    });
+    document.getElementById('install-pwa-btn').addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') installContainer.classList.add('hidden');
+            deferredPrompt = null;
+        }
+    });
+
+    // Initial Load
+    renderApp();
+</script>
+</body>
+</html>
