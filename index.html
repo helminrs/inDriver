@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>inDriver</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body, html { height: 100%; margin: 0; background-color: #121212; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+        #map { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 0; }
+        .app-shell { display: flex; flex-direction: column; height: 100vh; width: 100vw; position: relative; z-index: 10; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        /* Custom smooth scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="app-shell justify-between">
+    <!-- Header Utama ala inDrive -->
+    <header class="interactive m-3 flex justify-between items-center p-3.5 bg-[#181a1c]/95 backdrop-blur-md rounded-2xl border border-zinc-800/80 shadow-2xl">
+        <button id="menu-btn" class="text-white text-lg p-2 focus:outline-none"><i class="fa-solid fa-bars"></i></button>
+        <div class="flex items-center space-x-2 bg-black/50 px-3.5 py-1 rounded-full border border-white/10">
+            <span id="role-dot" class="w-2.5 h-2.5 rounded-full bg-[#8DFF3B] animate-pulse"></span>
+            <span id="header-title" class="text-xs font-bold text-[#8DFF3B] uppercase tracking-wider">Mode Pengemudi</span>
+        </div>
+        <button onclick="toggleAppMode()" class="text-xs bg-[#25282a] text-[#8DFF3B] font-bold px-3.5 py-1.5 rounded-xl border border-[#8DFF3B]/30 shadow-md">Mode</button>
+    </header>
+
+    <!-- Tombol Install PWA -->
+    <div id="pwa-banner" class="interactive mx-4 mb-2 hidden bg-[#181a1c] border border-[#8DFF3B]/40 p-3 rounded-2xl flex justify-between items-center shadow-2xl">
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-mobile-screen-button text-[#8DFF3B] text-xl"></i>
+            <div>
+                <p class="text-xs font-bold text-white">Install inDriver PWA</p>
+                <p class="text-[10px] text-zinc-400">Tampilan penuh proporsional</p>
+            </div>
+        </div>
+        <button id="install-btn" class="bg-[#8DFF3B] text-black text-xs font-bold px-3 py-1.5 rounded-xl">Install</button>
+    </div>
+
+    <!-- UI Card Bawah (Interaktif & Scrollable) -->
+    <div class="interactive bg-[#131517]/95 backdrop-blur-2xl border-t border-zinc-800 rounded-t-3xl p-5 shadow-2xl max-h-[75vh] overflow-y-auto" id="ui-card">
+        <!-- Dinamis -->
+    </div>
+
+    <!-- Sidebar Drawer (Menu Lengkap) -->
+    <div id="sidebar" class="interactive fixed inset-y-0 left-0 z-50 w-4/5 max-w-sm bg-[#131517] transform -translate-x-full transition-transform duration-300 flex flex-col shadow-2xl border-r border-zinc-800">
+        <div class="p-6 bg-[#0d0f11] border-b border-zinc-800 flex items-center space-x-4">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" alt="Profile" class="w-14 h-14 rounded-full object-cover border-2 border-[#8DFF3B]">
+            <div>
+                <h3 class="font-bold text-base text-white" id="profile-name">Helmi Nurliansyah</h3>
+                <p class="text-xs text-yellow-400 flex items-center mt-0.5"><i class="fa-solid fa-star mr-1"></i> <span id="profile-rating">5.00</span> (<span id="profile-trips-count">0</span> perjalanan)</p>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto py-2">
+            <a href="#" onclick="alert('Saldo Dompet: Rp0')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800/60"><i class="fa-solid fa-wallet w-8 text-[#8DFF3B]"></i> Dompet (Rp0)</a>
+            <a href="#" onclick="editVehicle()" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800/60"><i class="fa-solid fa-motorcycle w-8 text-[#8DFF3B]"></i> Kendaraan Saya <span id="vehicle-label" class="ml-auto text-[10px] text-zinc-400">PCX Hybrid</span></a>
+            <a href="#" onclick="openHistoryModal()" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800/60"><i class="fa-solid fa-clock-rotate-left w-8 text-[#8DFF3B]"></i> Riwayat Permintaan</a>
+            <a href="#" onclick="alert('Pengaturan Suara & Getar Aktif')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800/60"><i class="fa-solid fa-gear w-8 text-[#8DFF3B]"></i> Pengaturan Suara & Getar</a>
+        </div>
+        <div class="p-4 border-t border-zinc-800">
+            <button onclick="toggleAppMode()" class="w-full bg-[#8DFF3B] text-black font-bold py-3 rounded-xl text-sm shadow-md">Mode</button>
+        </div>
+    </div>
+    <div id="backdrop" class="interactive fixed inset-0 z-40 bg-black/60 hidden backdrop-blur-sm"></div>
+</div>
+
+<div id="map"></div>
+
+<!-- Modal Riwayat Permintaan -->
+<div id="history-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-[#181a1c] w-full max-w-lg rounded-3xl border border-zinc-800 p-5 max-h-[85vh] flex flex-col shadow-2xl">
+        <div class="flex justify-between items-center mb-4 pb-3 border-b border-zinc-800">
+            <h3 class="font-bold text-base text-white"><i class="fa-solid fa-clock-rotate-left text-[#8DFF3B] mr-2"></i> Riwayat Permintaan</h3>
+            <button onclick="closeHistoryModal()" class="text-zinc-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="history-list-content" class="flex-1 overflow-y-auto space-y-3 pr-1">
+            <!-- Data Riwayat Masuk Disini -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // Konfigurasi Firebase (Sesuaikan dengan project Firebase Anda)
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        databaseURL: "https://YOUR_DATABASE-default-rtdb.firebaseio.com",
+        projectId: "YOUR_PROJECT_ID",
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let appMode = 'driver'; // 'driver' atau 'passenger'
+    let orderState = 'idle'; // 'idle', 'searching', 'accepted', 'arrived', 'delivering', 'finished'
+    let activeOrderData = null;
+    let driverVehicle = "Hybrid - D4990SVC";
+    let historyTrips = JSON.parse(localStorage.getItem('indrive_history') || '[]');
+
+    let pickupCoords = [-7.0337, 107.5833];
+    let destCoords = [-7.0450, 107.6000];
+
+    // Inisialisasi Peta
+    const map = L.map('map', { zoomControl: false }).setView(pickupCoords, 15);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+    // Desain Pin Profesional (SVG Modern berbayangan halus ala inDrive/Google Maps)
+    const pickupSvgIcon = L.divIcon({
+        className: 'custom-pin-pickup',
+        html: '<div style="display:flex; align-items:center; background:#181a1c; border:2px solid #8DFF3B; padding:5px 10px; border-radius:20px; box-shadow:0 6px 16px rgba(0,0,0,0.7); white-space:nowrap;"><div style="width:10px; height:10px; background:#8DFF3B; border-radius:50%; margin-right:6px; box-shadow:0 0 8px #8DFF3B;"></div><span style="color:#fff; font-weight:bold; font-size:11px;">Titik Jemput</span></div>',
+        iconSize: [110, 36], iconAnchor: [55, 36]
+    });
+    const destSvgIcon = L.divIcon({
+        className: 'custom-pin-dest',
+        html: '<div style="display:flex; align-items:center; background:#181a1c; border:2px solid #ff4757; padding:5px 10px; border-radius:20px; box-shadow:0 6px 16px rgba(0,0,0,0.7); white-space:nowrap;"><div style="width:10px; height:10px; background:#ff4757; border-radius:50%; margin-right:6px; box-shadow:0 0 8px #ff4757;"></div><span style="color:#fff; font-weight:bold; font-size:11px;">Titik Tujuan</span></div>',
+        iconSize: [110, 36], iconAnchor: [55, 36]
+    });
+
+    const pickupMarker = L.marker(pickupCoords, { icon: pickupSvgIcon, draggable: true }).addTo(map);
+    const destMarker = L.marker(destCoords, { icon: destSvgIcon, draggable: true }).addTo(map);
+
+    pickupMarker.on('dragend', (e) => { pickupCoords = [e.target.getLatLng().lat, e.target.getLatLng().lng]; updateUI(); });
+    destMarker.on('dragend', (e) => { destCoords = [e.target.getLatLng().lat, e.target.getLatLng().lng]; updateUI(); });
+
+    // Kalkulasi Harga Nyata (Dasar 9000 untuk 4.5km, selanjutnya 2500/km)
+    function calculateFare() {
+        const distanceKm = L.latLng(pickupCoords[0], pickupCoords[1]).distanceTo(L.latLng(destCoords[0], destCoords[1])) / 1000;
+        let fare = 9000;
+        if (distanceKm > 4.5) fare += Math.ceil(distanceKm - 4.5) * 2500;
+        return { distance: distanceKm.toFixed(1), price: fare };
+    }
+
+    // Feedback Audio & Getar Bervariasi
+    function triggerVibration(type) {
+        if ("vibrate" in navigator) {
+            if (type === 'near') navigator.vibrate([400, 100, 400]); // Getaran panjang ganda untuk order radius <=2km
+            else if (type === 'accept' || type === 'arrived') navigator.vibrate([600]); // Getaran panjang tunggal
+        }
+    }
+
+    // Render Tampilan Utama
+    function updateUI() {
+        const card = document.getElementById('ui-card');
+        const title = document.getElementById('header-title');
+        const calc = calculateFare();
+
+        document.getElementById('profile-trips-count').innerText = historyTrips.length;
+        document.getElementById('vehicle-label').innerText = driverVehicle;
+
+        if (appMode === 'passenger') {
+            title.innerText = "Mode Penumpang";
+            if (orderState === 'idle') {
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center text-xs text-zinc-400 font-bold">
+                            <span>GESER PIN DI PETA UNTUK ATUR LOKASI</span>
+                            <span class="text-[#8DFF3B]">${calc.distance} km</span>
+                        </div>
+                        <div class="bg-[#181a1c] p-3 rounded-xl border border-zinc-800 text-xs text-zinc-300">
+                            <i class="fa-solid fa-location-dot text-[#8DFF3B] mr-2"></i> Jemput: ${pickupCoords[0].toFixed(4)}, ${pickupCoords[1].toFixed(4)}
+                        </div>
+                        <div class="bg-[#181a1c] p-3 rounded-xl border border-zinc-800 text-xs text-zinc-300">
+                            <i class="fa-solid fa-flag-checkered text-red-400 mr-2"></i> Tujuan: ${destCoords[0].toFixed(4)}, ${destCoords[1].toFixed(4)}
+                        </div>
+                        <div class="flex items-center justify-between bg-[#181a1c] p-3 rounded-xl border border-zinc-800 text-xs">
+                            <span class="text-zinc-300">Tawaran Tarif (Rp)</span>
+                            <input id="passenger-price" type="text" value="${calc.price.toLocaleString('id-ID')}" class="bg-black text-[#8DFF3B] font-bold px-3 py-1 rounded-lg w-28 text-right border border-zinc-700">
+                        </div>
+                        <button onclick="passengerPublishOrder()" class="w-full bg-[#8DFF3B] text-black font-bold py-3.5 rounded-2xl text-sm shadow-xl">Pesan inMotor Sekarang</button>
+                    </div>`;
+            } else if (orderState === 'searching') {
+                card.innerHTML = `<div class="text-center py-6 text-xs text-zinc-400"><i class="fa-solid fa-spinner animate-spin text-[#8DFF3B] text-xl mb-2"></i><br>Mencari driver terdekat & menyiarkan pesanan...</div>`;
+            } else {
+                card.innerHTML = `<div class="bg-[#181a1c] p-4 rounded-xl border border-zinc-800 text-center space-y-2"><p class="text-xs text-[#8DFF3B] font-bold">Pesanan Sedang Berjalan</p><p class="text-xs text-zinc-300">Driver ${driverVehicle} sedang dalam perjalanan.</p></div>`;
+            }
+        } else {
+            title.innerText = "Mode Pengemudi (Online)";
+            
+            // Dengarkan database Firebase untuk order masuk real-time
+            db.ref('active_orders').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data || data.status !== 'searching') {
+                    if (orderState === 'idle') {
+                        card.innerHTML = `<div class="text-center py-6 text-xs text-zinc-400"><i class="fa-solid fa-radar animate-spin text-[#8DFF3B] text-xl mb-2"></i><br>Radar Aktif: Menunggu Pop-up Orderan Terdekat (&lt; 2 km)...</div>`;
+                    }
+                    return;
+                }
+
+                activeOrderData = data;
+                triggerVibration('near'); // Getaran panjang ganda order terdekat <=2km
+
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center text-xs text-zinc-400 uppercase font-bold">
+                            <span>Pop-up Orderan Terdekat (&lt; 2km)</span>
+                            <span class="text-[#8DFF3B]">Baru</span>
+                        </div>
+                        <div class="bg-[#181a1c] p-4 rounded-2xl border border-zinc-700 space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="font-bold text-sm text-white">inMotor - Perjalanan Kota</h4>
+                                    <p class="text-xs text-zinc-400">Jarak jemput &lt; 1.5 km dari Anda</p>
+                                </div>
+                                <span class="bg-[#8DFF3B]/20 text-[#8DFF3B] text-xs px-2.5 py-1 rounded-full font-bold">Rp ${data.price}</span>
+                            </div>
+                            <button onclick="driverAcceptOrder()" class="w-full bg-[#8DFF3B] text-black font-bold py-3 rounded-xl text-xs shadow-lg">Kirim Tawaran / Terima Order</button>
+                        </div>
+                    </div>`;
+            });
+
+            if (orderState === 'accepted') {
+                card.innerHTML = `
+                    <div class="bg-[#181a1c] p-4 rounded-2xl border border-zinc-700 space-y-3">
+                        <h4 class="font-bold text-sm text-[#8DFF3B]"><i class="fa-solid fa-route mr-1"></i> Menuju Titik Jemput</h4>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${pickupCoords[0]},${pickupCoords[1]}&travelmode=driving" target="_blank" class="block w-full text-center bg-blue-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg"><i class="fa-solid fa-location-arrow mr-1"></i> Buka Navigasi Google Maps (Rute Motor)</a>
+                        <button onclick="driverArrived()" class="w-full bg-[#8DFF3B] text-black font-bold py-3 rounded-xl text-xs shadow-lg">Saya Sudah Tiba di Titik Jemput</button>
+                    </div>`;
+            } else if (orderState === 'arrived') {
+                card.innerHTML = `
+                    <div class="bg-[#181a1c] p-4 rounded-2xl border border-zinc-700 space-y-3 text-center">
+                        <p class="text-xs text-yellow-400 font-bold"><i class="fa-solid fa-bell"></i> Notifikasi & getaran panjang terkirim ke penumpang!</p>
+                        <button onclick="driverStartDelivering()" class="w-full bg-[#8DFF3B] text-black font-bold py-3 rounded-xl text-xs shadow-lg">Mulai Perjalanan ke Tujuan</button>
+                    </div>`;
+            } else if (orderState === 'delivering') {
+                card.innerHTML = `
+                    <div class="bg-[#181a1c] p-4 rounded-2xl border border-zinc-700 space-y-3">
+                        <h4 class="font-bold text-sm text-yellow-400"><i class="fa-solid fa-motorcycle mr-1"></i> Perjalanan Menuju Tujuan</h4>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${destCoords[0]},${destCoords[1]}&travelmode=driving" target="_blank" class="block w-full text-center bg-blue-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg"><i class="fa-solid fa-location-arrow mr-1"></i> Navigasi ke Titik Tujuan</a>
+                        <button onclick="driverFinishOrder()" class="w-full bg-[#8DFF3B] text-black font-bold py-3 rounded-xl text-xs shadow-lg">Orderan Selesai (Simpan Riwayat)</button>
+                    </div>`;
+            }
+        }
+    }
+
+    // Alur Transaksi Nyata
+    function passengerPublishOrder() {
+        const price = document.getElementById('passenger-price').value;
+        const orderId = 'ord_' + Date.now();
+        db.ref('active_orders').set({
+            id: orderId,
+            price: price,
+            pickup: pickupCoords,
+            destination: destCoords,
+            status: 'searching',
+            timestamp: new Date().toLocaleString('id-ID')
+        });
+        orderState = 'searching';
+        updateUI();
+        alert("Pesanan disiarkan ke driver terdekat!");
+    }
+
+    function driverAcceptOrder() {
+        triggerVibration('accept');
+        orderState = 'accepted';
+        db.ref('active_orders/status').set('accepted');
+        updateUI();
+    }
+
+    function driverArrived() {
+        triggerVibration('arrived'); // Getaran panjang & suara ke penumpang
+        orderState = 'arrived';
+        alert("Notifikasi & getaran panjang dikirim ke penumpang: Driver Telah Tiba di Titik Jemput!");
+        updateUI();
+    }
+
+    function driverStartDelivering() {
+        orderState = 'delivering';
+        updateUI();
+    }
+
+    function driverFinishOrder() {
+        triggerVibration('accept');
+        const nowTime = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+        const newTrip = {
+            id: 'TRIP-' + Math.floor(1000 + Math.random() * 9000),
+            date: nowTime,
+            service: 'inMotor - Perjalanan Dalam Kota',
+            vehicle: driverVehicle,
+            fare: activeOrderData ? activeOrderData.price : '11.500'
+        };
+        historyTrips.unshift(newTrip);
+        localStorage.setItem('indrive_history', JSON.stringify(historyTrips));
+
+        // Hapus active order dari firebase agar radar kembali kosong
+        db.ref('active_orders').remove();
+        orderState = 'idle';
+        updateUI();
+        alert("Orderan Selesai! Data lengkap tersimpan otomatis di Riwayat Permintaan.");
+    }
+
+    // Kelola Riwayat Modal
+    function openHistoryModal() {
+        const listContent = document.getElementById('history-list-content');
+        listContent.innerHTML = '';
+        if (historyTrips.length === 0) {
+            listContent.innerHTML = `<p class="text-xs text-zinc-500 text-center py-6">Tidak ada order yang telah diselesaikan.</p>`;
+        } else {
+            historyTrips.forEach(trip => {
+                listContent.innerHTML += `
+                    <div class="bg-[#121416] p-3.5 rounded-2xl border border-zinc-800 space-y-1">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-xs text-white">${trip.service}</span>
+                            <span class="font-bold text-xs text-[#8DFF3B]">Rp ${trip.fare}</span>
+                        </div>
+                        <p class="text-[10px] text-zinc-400"><i class="fa-solid fa-clock mr-1"></i> ${trip.date}</p>
+                        <p class="text-[10px] text-zinc-500">Kendaraan: ${trip.vehicle}</p>
+                    </div>`;
+            });
+        }
+        document.getElementById('history-modal').classList.remove('hidden');
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('backdrop').classList.add('hidden');
+    }
+
+    function closeHistoryModal() {
+        document.getElementById('history-modal').classList.add('hidden');
+    }
+
+    function editVehicle() {
+        const newV = prompt("Edit Kendaraan Anda (Contoh: Honda Vario 160 - D5678ABC):", driverVehicle);
+        if (newV) {
+            driverVehicle = newV;
+            updateUI();
+            alert("Kendaraan berhasil diperbarui!");
+        }
+    }
+
+    function toggleAppMode() {
+        appMode = appMode === 'driver' ? 'passenger' : 'driver';
+        orderState = 'idle';
+        updateUI();
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('backdrop').classList.add('hidden');
+    }
+
+    // Sidebar & Backdrop
+    document.getElementById('menu-btn').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.remove('-translate-x-full');
+        document.getElementById('backdrop').classList.remove('hidden');
+    });
+    document.getElementById('backdrop').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('backdrop').classList.add('hidden');
+    });
+
+    // PWA Install Prompt
+    let deferredPrompt;
+    const pwaBanner = document.getElementById('pwa-banner');
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        pwaBanner.classList.remove('hidden');
+    });
+    document.getElementById('install-btn').addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') pwaBanner.classList.add('hidden');
+            deferredPrompt = null;
+        }
+    });
+
+    updateUI();
+</script>
+</body>
+</html>
