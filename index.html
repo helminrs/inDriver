@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>inDriver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body, html { height: 100%; margin: 0; background-color: #121212; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+        #map { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 0; }
+        .app-container { display: flex; flex-direction: column; min-height: 100vh; width: 100vw; position: relative; z-index: 10; pointer-events: none; }
+        .interactive-ui { pointer-events: auto; }
+    </style>
+</head>
+<body>
+
+<div class="app-container justify-between">
+    <!-- Top Header Bar -->
+    <header class="interactive-ui m-4 flex justify-between items-center p-3 bg-zinc-900/90 backdrop-blur-md rounded-2xl border border-zinc-800 shadow-xl">
+        <button id="menu-btn" class="text-white text-lg p-2 focus:outline-none"><i class="fa-solid fa-bars"></i></button>
+        <div class="flex items-center space-x-2 bg-black/40 px-3 py-1 rounded-full border border-white/10">
+            <span id="role-dot" class="w-2.5 h-2.5 rounded-full bg-lime-400 animate-pulse"></span>
+            <span id="header-title" class="text-xs font-bold text-white uppercase tracking-wider">Mode Penumpang</span>
+        </div>
+        <button onclick="toggleMode()" class="text-xs bg-zinc-800 text-lime-400 font-bold px-3 py-1.5 rounded-xl border border-lime-400/30">Mode</button>
+    </header>
+
+    <!-- Floating PWA Install Trigger -->
+    <div id="pwa-banner" class="interactive-ui mx-4 mb-2 hidden bg-zinc-900/95 border border-lime-400/40 p-3 rounded-2xl flex justify-between items-center shadow-2xl backdrop-blur-md">
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-mobile-screen-button text-lime-400 text-xl"></i>
+            <div>
+                <p class="text-xs font-bold text-white">Install Aplikasi inDriver</p>
+                <p class="text-[10px] text-zinc-400">Tampilan penuh & performa maksimal</p>
+            </div>
+        </div>
+        <button id="install-btn" class="bg-lime-400 text-black text-xs font-bold px-3 py-1.5 rounded-xl">Install PWA</button>
+    </div>
+
+    <!-- Bottom Interactive Control Card -->
+    <div class="interactive-ui bg-zinc-900/95 backdrop-blur-2xl border-t border-zinc-800 rounded-t-3xl p-5 shadow-2xl max-h-[80vh] overflow-y-auto" id="ui-card">
+        <!-- Konten dinamis dirender via JS -->
+    </div>
+
+    <!-- Sidebar Drawer -->
+    <div id="sidebar" class="interactive-ui fixed inset-y-0 left-0 z-50 w-4/5 max-w-sm bg-zinc-900 transform -translate-x-full transition-transform duration-300 flex flex-col shadow-2xl border-r border-zinc-800">
+        <div class="p-6 bg-zinc-950 border-b border-zinc-800 flex items-center space-x-4">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" alt="Profile" class="w-14 h-14 rounded-full object-cover border-2 border-lime-400">
+            <div>
+                <h3 class="font-bold text-base text-white">Helmi Nurliansyah</h3>
+                <p class="text-xs text-yellow-400 flex items-center mt-0.5"><i class="fa-solid fa-star mr-1"></i> 5.00 (5995)</p>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto py-2">
+            <a href="#" onclick="alert('Saldo Dompet: Rp0')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-wallet w-8 text-lime-400"></i> Dompet (Rp0)</a>
+            <a href="#" onclick="alert('Kendaraan: Honda PCX Hybrid')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-motorcycle w-8 text-lime-400"></i> Kendaraan Saya</a>
+            <a href="#" onclick="alert('Riwayat Permintaan tersimpan lengkap')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-clock-rotate-left w-8 text-lime-400"></i> Riwayat Permintaan</a>
+            <a href="#" onclick="alert('Pengaturan Suara & Getar Aktif')" class="flex items-center px-6 py-3.5 text-sm text-zinc-200 hover:bg-zinc-800"><i class="fa-solid fa-gear w-8 text-lime-400"></i> Pengaturan Suara & Getar</a>
+        </div>
+        <div class="p-4 border-t border-zinc-800">
+            <button onclick="toggleMode()" class="w-full bg-lime-400 text-black font-bold py-3 rounded-xl text-sm shadow-md">Mode</button>
+        </div>
+    </div>
+    <div id="backdrop" class="interactive-ui fixed inset-0 z-40 bg-black/60 hidden backdrop-blur-sm"></div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    let mode = 'passenger'; // 'passenger' atau 'driver'
+    let orderStatus = 'idle'; // 'idle', 'searching', 'bidding', 'otw', 'arrived', 'delivering'
+    
+    // Koordinat Default (Subang / Banjaran)
+    let pickupCoords = [-7.0337, 107.5833];
+    let destCoords = [-7.0450, 107.6000];
+
+    // Inisialisasi Peta Leaflet
+    const map = L.map('map', { zoomControl: false }).setView(pickupCoords, 15);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+    // 1. Ikon GPS Real-time Penumpang (Titik Biru & Bayangan Putih ala Google Maps)
+    const passengerGpsIcon = L.divIcon({
+        className: 'gps-passenger',
+        html: '<div style="position:relative; width:24px; height:24px;"><div style="position:absolute; width:24px; height:24px; background:rgba(59,130,246,0.3); border-radius:50%; animation: pulse 2s infinite;"></div><div style="position:absolute; top:4px; left:4px; width:16px; height:16px; background:#3b82f6; border:3px solid #ffffff; border-radius:50%; box-shadow:0 0 8px rgba(0,0,0,0.5);"></div></div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+    const passengerGpsMarker = L.marker(pickupCoords, { icon: passengerGpsIcon }).addTo(map).bindPopup("Lokasi GPS Real-time Anda");
+
+    // 2. Pin Jemput & Bendera Tujuan yang bisa digeser (Draggable)
+    const pickupPinIcon = L.divIcon({
+        className: 'pin-jemput',
+        html: '<div style="background:#a3e635; color:#000; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px; border:2px solid #000; box-shadow:0 2px 6px rgba(0,0,0,0.4); white-space:nowrap;"><i class="fa-solid fa-location-pin"></i> Titik Jemput</div>',
+        iconSize: [80, 24],
+        iconAnchor: [40, 24]
+    });
+    const destPinIcon = L.divIcon({
+        className: 'pin-tujuan',
+        html: '<div style="background:#ef4444; color:#fff; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px; border:2px solid #000; box-shadow:0 2px 6px rgba(0,0,0,0.4); white-space:nowrap;"><i class="fa-solid fa-flag-checkered"></i> Tujuan</div>',
+        iconSize: [70, 24],
+        iconAnchor: [35, 24]
+    });
+
+    const pickupMarker = L.marker(pickupCoords, { icon: pickupPinIcon, draggable: true }).addTo(map);
+    const destMarker = L.marker(destCoords, { icon: destPinIcon, draggable: true }).addTo(map);
+
+    // Update Koordinat saat Pin digeser oleh Penumpang
+    pickupMarker.on('dragend', function(e) {
+        const pos = e.target.getLatLng();
+        pickupCoords = [pos.lat, pos.lng];
+        updateFareAndUI();
+    });
+    destMarker.on('dragend', function(e) {
+        const pos = e.target.getLatLng();
+        destCoords = [pos.lat, pos.lng];
+        updateFareAndUI();
+    });
+
+    // Kalkulasi Jarak & Harga Nyata (Dasar 9000 untuk 4.5km pertama, selanjutnya 2500/km)
+    function calculateFare() {
+        const latLng1 = L.latLng(pickupCoords[0], pickupCoords[1]);
+        const latLng2 = L.latLng(destCoords[0], destCoords[1]);
+        const distanceKm = latLng1.distanceTo(latLng2) / 1000; // dalam KM
+        
+        let fare = 9000;
+        if (distanceKm > 4.5) {
+            fare += Math.ceil(distanceKm - 4.5) * 2500;
+        }
+        return { distance: distanceKm.toFixed(1), price: fare };
+    }
+
+    function updateFareAndUI() {
+        const calc = calculateFare();
+        const priceInput = document.getElementById('bid-price-input');
+        const distText = document.getElementById('dist-info');
+        if (priceInput) priceInput.value = calc.price.toLocaleString('id-ID');
+        if (distText) distText.innerText = `Estimasi Jarak: ${calc.distance} km (Tarif Dasar 9rb / 4.5km)`;
+    }
+
+    // Render UI Card Interaktif
+    function render() {
+        const card = document.getElementById('ui-card');
+        const headerTitle = document.getElementById('header-title');
+
+        if (mode === 'passenger') {
+            headerTitle.innerText = "Mode Penumpang (Pesan Ojol)";
+            if (orderStatus === 'idle') {
+                const calc = calculateFare();
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-zinc-400">GESER PIN DI PETA UNTUK UBAH LOKASI</span>
+                            <span class="text-xs text-lime-400 font-bold" id="dist-info">Jarak: ${calc.distance} km</span>
+                        </div>
+                        <div class="bg-zinc-800/90 p-3 rounded-xl border border-zinc-700 flex items-center justify-between">
+                            <span class="text-xs text-zinc-300 truncate"><i class="fa-solid fa-location-pin text-lime-400 mr-2"></i> Jemput: (${pickupCoords[0].toFixed(4)}, ${pickupCoords[1].toFixed(4)})</span>
+                        </div>
+                        <div class="bg-zinc-800/90 p-3 rounded-xl border border-zinc-700 flex items-center justify-between">
+                            <span class="text-xs text-zinc-300 truncate"><i class="fa-solid fa-flag-checkered text-red-400 mr-2"></i> Tujuan: (${destCoords[0].toFixed(4)}, ${destCoords[1].toFixed(4)})</span>
+                        </div>
+                        <div class="flex items-center justify-between bg-zinc-800/60 p-3 rounded-xl border border-zinc-700">
+                            <span class="text-xs text-zinc-300">Tawaran Tarif Anda (Rp)</span>
+                            <input id="bid-price-input" type="text" value="${calc.price.toLocaleString('id-ID')}" class="bg-zinc-900 text-lime-400 font-bold px-3 py-1.5 rounded-lg w-32 text-right border border-zinc-700 focus:outline-none">
+                        </div>
+                        <button onclick="passengerOrder()" class="w-full bg-lime-400 text-black font-bold py-3.5 rounded-2xl text-sm shadow-xl">Cari Driver Sekarang</button>
+                    </div>`;
+            } else if (orderStatus === 'searching') {
+                card.innerHTML = `
+                    <div class="text-center py-4 space-y-3">
+                        <i class="fa-solid fa-spinner animate-spin text-lime-400 text-3xl"></i>
+                        <h4 class="font-bold text-sm text-white">Menyiarkan Order ke Driver Terdekat...</h4>
+                        <p class="text-xs text-zinc-400">Driver dalam radius 3km menerima pop-up & suara notifikasi.</p>
+                    </div>`;
+            } else if (orderStatus === 'bidding') {
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <h4 class="font-bold text-xs text-lime-400 uppercase tracking-wider">Pilih Driver yang Menawar</h4>
+                        <div class="bg-zinc-800/90 p-3 rounded-xl border border-zinc-700 flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-lime-400 text-black font-bold rounded-full flex items-center justify-center">H</div>
+                                <div>
+                                    <p class="font-bold text-xs text-white">Helmi (Honda PCX)</p>
+                                    <p class="text-[10px] text-yellow-400"><i class="fa-solid fa-star"></i> 5.0 (21) • 1.2 km</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-sm text-lime-400">Rp 11.500</p>
+                                <button onclick="selectDriver()" class="bg-lime-400 text-black text-xs font-bold px-3 py-1.5 rounded-lg mt-1 shadow-md">Pilih Driver</button>
+                            </div>
+                        </div>
+                    </div>`;
+            } else if (orderStatus === 'otw' || orderStatus === 'arrived' || orderStatus === 'delivering') {
+                card.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-xl border border-zinc-700 space-y-3">
+                        <p class="text-xs text-lime-400 font-bold animate-pulse"><i class="fa-solid fa-motorcycle"></i> Driver sedang dalam perjalanan ke titik jemput Anda</p>
+                        <p class="text-xs text-zinc-300">Driver: <b>Helmi Nurliansyah</b> (PCX - D4990SVC)</p>
+                    </div>`;
+            }
+        } else {
+            headerTitle.innerText = "Mode Pengemudi (Online)";
+            if (orderStatus === 'idle' || orderStatus === 'searching') {
+                card.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-zinc-400 uppercase">Radar Orderan (&lt; 3 km Pop-up)</span>
+                            <span class="text-xs text-lime-400 font-semibold"><i class="fa-solid fa-radar animate-spin mr-1"></i> Aktif</span>
+                        </div>
+                        <div class="bg-zinc-800/80 p-4 rounded-2xl border border-zinc-700">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="font-bold text-sm text-white">inMotor - Permintaan Baru</h4>
+                                    <p class="text-xs text-zinc-400">Jarak jemput: 1.2 km dari Anda</p>
+                                </div>
+                                <span class="bg-lime-400/20 text-lime-400 text-xs px-2.5 py-1 rounded-full font-bold">Rp 11.500</span>
+                            </div>
+                            <button onclick="driverBid()" class="w-full mt-3 bg-lime-400 text-black font-bold py-3 rounded-xl text-xs shadow-lg">Kirim Tawaran / Terima Order</button>
+                        </div>
+                    </div>`;
+            } else if (orderStatus === 'otw') {
+                card.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-2xl border border-zinc-700 space-y-3">
+                        <h4 class="font-bold text-sm text-lime-400"><i class="fa-solid fa-route"></i> Menuju Titik Jemput Penumpang</h4>
+                        <!-- Tombol Navigasi Nyata (Terhubung Google Maps / Waze rute motor) -->
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${pickupCoords[0]},${pickupCoords[1]}&travelmode=driving" target="_blank" class="block w-full text-center bg-blue-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg"><i class="fa-solid fa-location-arrow mr-1"></i> Buka Navigasi Google Maps (Rute Motor)</a>
+                        <button onclick="driverArrived()" class="w-full bg-lime-400 text-black font-bold py-3 rounded-xl text-xs shadow-lg">Saya Sudah Tiba di Titik Jemput</button>
+                    </div>`;
+            } else if (orderStatus === 'arrived') {
+                card.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-2xl border border-zinc-700 space-y-3 text-center">
+                        <p class="text-xs text-yellow-400 font-bold"><i class="fa-solid fa-bell"></i> Notifikasi & getaran terkirim ke penumpang: Tiba di jemput.</p>
+                        <button onclick="driverStartDelivery()" class="w-full bg-lime-400 text-black font-bold py-3 rounded-xl text-xs shadow-lg">Mulai Perjalanan ke Tujuan</button>
+                    </div>`;
+            } else if (orderStatus === 'delivering') {
+                card.innerHTML = `
+                    <div class="bg-zinc-800/90 p-4 rounded-2xl border border-zinc-700 space-y-3">
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${destCoords[0]},${destCoords[1]}&travelmode=driving" target="_blank" class="block w-full text-center bg-blue-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg"><i class="fa-solid fa-location-arrow mr-1"></i> Navigasi ke Titik Tujuan</a>
+                        <button onclick="driverFinish()" class="w-full bg-lime-400 text-black font-bold py-3 rounded-xl text-xs shadow-lg">Orderan Selesai (Simpan Riwayat)</button>
+                    </div>`;
+            }
+        }
+    }
+
+    // Aksi Logika Transaksi
+    function toggleMode() {
+        mode = mode === 'passenger' ? 'driver' : 'passenger';
+        render();
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('backdrop').classList.add('hidden');
+    }
+
+    function passengerOrder() {
+        orderStatus = 'searching';
+        render();
+        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+        setTimeout(() => { orderStatus = 'bidding'; render(); }, 2000);
+    }
+
+    function selectDriver() {
+        orderStatus = 'otw';
+        if ("vibrate" in navigator) navigator.vibrate([600]);
+        render();
+    }
+
+    function driverBid() {
+        orderStatus = 'otw';
+        if ("vibrate" in navigator) navigator.vibrate([600]);
+        render();
+    }
+
+    function driverArrived() {
+        orderStatus = 'arrived';
+        if ("vibrate" in navigator) navigator.vibrate([800]);
+        alert("Notifikasi & getaran panjang dikirim ke penumpang: Driver Tiba di Titik Jemput!");
+        render();
+    }
+
+    function driverStartDelivery() {
+        orderStatus = 'delivering';
+        render();
+    }
+
+    function driverFinish() {
+        alert("Orderan Selesai! Data lengkap beserta waktu tercatat di Riwayat Permintaan.");
+        orderStatus = 'idle';
+        render();
+    }
+
+    // PWA Install Prompt Handler
+    let deferredPrompt;
+    const pwaBanner = document.getElementById('pwa-banner');
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        pwaBanner.classList.remove('hidden');
+    });
+    document.getElementById('install-btn').addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') pwaBanner.classList.add('hidden');
+            deferredPrompt = null;
+        }
+    });
+
+    // Sidebar Controller
+    document.getElementById('menu-btn').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.remove('-translate-x-full');
+        document.getElementById('backdrop').classList.remove('hidden');
+    });
+    document.getElementById('backdrop').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('backdrop').classList.add('hidden');
+    });
+
+    // Inisialisasi Pertama
+    render();
+</script>
+</body>
+</html>
