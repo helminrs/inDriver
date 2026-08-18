@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iqDriver & iqPassenger System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 420px;
+            height: 100vh;
+            max-height: 850px;
+            background-color: #181818;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        @media(min-width: 421px) {
+            .app-container {
+                border-radius: 24px;
+                border: 8px solid #333;
+            }
+        }
+
+        /* ---------------- DRIVER APP MODE ---------------- */
+        #driverApp {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background-color: #181818;
+            z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .menu-btn, .settings-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .status-pill {
+            background-color: #2b2b2b;
+            border-radius: 20px;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            width: 110px;
+            justify-content: flex-end;
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+            height: 32px;
+        }
+
+        .status-pill .online-text {
+            position: absolute;
+            left: 14px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .status-pill .pill-badge {
+            background-color: #ccff00;
+            color: #000;
+            padding: 5px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .balance-banner {
+            background-color: #242424;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 10;
+            border-bottom: 1px solid #222;
+        }
+
+        .balance-banner span { color: #ccc; }
+        .balance-banner i { color: #888; }
+
+        .content {
+            flex: 1;
+            position: relative;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            position: relative;
+            overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* Radar & Order Wrapper */
+        .radar-wrapper {
+            position: relative;
+            width: 100%;
+            height: 380px;
+            flex: none;
+            background-color: #121212;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .radar-circle {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border: 1px solid rgba(204, 255, 0, 0.2);
+            border-radius: 50%;
+        }
+
+        .radar-circle.c2 { width: 220px; height: 220px; }
+        .radar-circle.c3 { width: 140px; height: 140px; }
+        .radar-circle.c4 { width: 60px; height: 60px; }
+
+        .radar-center-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #ccff00;
+            border-radius: 50%;
+            z-index: 2;
+            box-shadow: 0 0 10px #ccff00;
+            position: absolute;
+        }
+
+        .radar-sweep {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background: linear-gradient(45deg, rgba(204,255,0,0.4) 0%, transparent 70%);
+            top: calc(50% - 150px);
+            left: calc(50% - 150px);
+            transform-origin: bottom right;
+            animation: sweep 4s linear infinite;
+            border-top-left-radius: 100%;
+        }
+
+        @keyframes sweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .radar-text {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            text-align: center;
+            font-size: 15px;
+            color: #eee;
+            font-weight: 500;
+            z-index: 3;
+        }
+
+        .order-list {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: #181818;
+        }
+
+        .order-card {
+            background-color: #222;
+            border-radius: 12px;
+            padding: 14px;
+            position: relative;
+        }
+
+        .order-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .order-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #444;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .order-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .order-user-name { font-size: 14px; font-weight: bold; }
+        .order-rating { font-size: 12px; color: #aaa; display: flex; align-items: center; gap: 4px; }
+        .order-rating i { color: #ffc107; font-size: 10px; }
+        .order-price { font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 6px; }
+        .order-route { font-size: 13px; color: #ccc; line-height: 1.4; }
+        .order-route .dest { color: #999; font-size: 12px; }
+        .order-options-btn {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        /* Performa Tab */
+        .performa-container { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+        .performa-header-title { font-size: 22px; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+        .performa-card { background-color: #222; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .earnings-amount { font-size: 24px; font-weight: bold; margin: 8px 0; }
+        .btn-target { background-color: #2a2a2a; color: #fff; border: none; width: 100%; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* Bottom Nav Driver */
+        .bottom-nav { display: flex; background-color: #181818; border-top: 1px solid #282828; height: 60px; z-index: 10; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: none; border: none; color: #777; font-size: 11px; cursor: pointer; gap: 4px; }
+        .nav-item.active { color: #fff; }
+        .nav-item i { font-size: 18px; }
+
+        /* ---------------- APP MODE: PASSENGER ---------------- */
+        #passengerApp {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            position: relative;
+        }
+
+        #passengerMap {
+            width: 100%;
+            flex: 1;
+        }
+
+        .passenger-top-bar {
+            position: absolute;
+            top: 12px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 5;
+        }
+
+        .passenger-menu-btn {
+            background-color: #1f1f1f;
+            border: none;
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .location-pill {
+            background-color: #1f1f1f;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .passenger-bottom-sheet {
+            background-color: #1f1f1f;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 5;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
+        }
+
+        .service-tabs {
+            display: flex;
+            gap: 12px;
+        }
+
+        .service-tab {
+            background-color: #2b2b2b;
+            border: 2px solid transparent;
+            padding: 8px 16px;
+            border-radius: 12px;
+            color: #aaa;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .service-tab.active {
+            background-color: #263800;
+            border-color: #ccff00;
+            color: #fff;
+        }
+
+        .search-box-pass {
+            background-color: #2b2b2b;
+            padding: 12px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .search-box-pass input {
+            background: none;
+            border: none;
+            color: #fff;
+            width: 100%;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .price-offer-box {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .price-offer-box label {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .price-offer-box input {
+            background-color: #2b2b2b;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 8px;
+            color: #ccff00;
+            font-size: 16px;
+            font-weight: bold;
+            outline: none;
+        }
+
+        .btn-order-now {
+            background-color: #ccff00;
+            color: #000;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        /* ---------------- SIDEBAR & PROFILE PAGE ---------------- */
+        .sidebar {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 85%;
+            height: 100%;
+            background-color: #1f1f1f;
+            z-index: 100;
+            transition: 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+        }
+
+        .sidebar.open { left: 0; }
+
+        .sidebar-header {
+            padding: 20px 16px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .sidebar-profile { display: flex; align-items: center; gap: 12px; }
+        .sidebar-avatar { width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background-color: #444; }
+        .sidebar-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .sidebar-name h3 { font-size: 16px; margin-bottom: 2px; }
+        .sidebar-name .rating { font-size: 12px; color: #aaa; display: flex; align-items: center; gap: 4px; }
+        .sidebar-name .rating i { color: #ffc107; }
+
+        .sidebar-menu { flex: 1; overflow-y: auto; padding: 10px 0; }
+        .sidebar-item { padding: 14px 20px; display: flex; align-items: center; gap: 16px; color: #ddd; font-size: 15px; background: none; border: none; width: 100%; text-align: left; cursor: pointer; }
+        .sidebar-item i { font-size: 18px; color: #aaa; width: 24px; text-align: center; }
+        
+        .sidebar-footer { padding: 16px; display: flex; flex-direction: column; gap: 16px; border-top: 1px solid #333; }
+        .mode-switch-btn { background-color: #ccff00; color: #000; border: none; padding: 14px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; text-align: center; }
+
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); z-index: 90; display: none; }
+        .overlay.show { display: block; }
+
+        /* Profil Pengemudi */
+        .profile-page {
+            position: absolute;
+            top: 0;
+            left: 100%;
+            width: 100%;
+            height: 100%;
+            background-color: #181818;
+            z-index: 150;
+            transition: 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .profile-page.open { left: 0; }
+        .profile-header { display: flex; align-items: center; padding: 16px; gap: 16px; border-bottom: 1px solid #333; background: #1f1f1f; }
+        .profile-body { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+        .profile-card { background: #222; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+
+        /* Modal Umum */
+        .custom-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .custom-modal.active { display: flex; }
+        .modal-box { background: #222; width: 100%; max-width: 340px; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+        .modal-btn-close { background-color: #ccff00; color: #000; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <!-- ---------------- DRIVER APP MODE ---------------- -->
+    <div id="driverApp">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header" onclick="openProfilePage()">
+                <div class="sidebar-profile">
+                    <div class="sidebar-avatar">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" alt="Helmi">
+                    </div>
+                    <div class="sidebar-name">
+                        <h3>Helmi</h3>
+                        <div class="rating">
+                            <i class="fa-solid fa-star"></i> 5.00 (21)
+                        </div>
+                    </div>
+                </div>
+                <i class="fa-solid fa-chevron-right" style="color: #777; font-size: 14px;"></i>
+            </div>
+            <div class="sidebar-menu">
+                <button class="sidebar-item" onclick="showAlert('Menu Kota')"><i class="fa-solid fa-car"></i> Kota</button>
+                <button class="sidebar-item" onclick="showAlert('Menu Dompet')"><i class="fa-solid fa-wallet"></i> Dompet</button>
+                <button class="sidebar-item" onclick="showAlert('Menu Antarkota')"><i class="fa-solid fa-globe"></i> Antarkota</button>
+                <button class="sidebar-item" onclick="showAlert('Notifikasi')"><i class="fa-solid fa-bell"></i> Notifikasi</button>
+                <button class="sidebar-item" onclick="showAlert('Keselamatan')"><i class="fa-solid fa-shield-halved"></i> Keselamatan</button>
+                <button class="sidebar-item" onclick="showAlert('Pengaturan')"><i class="fa-solid fa-gear"></i> Pengaturan</button>
+                <button class="sidebar-item" onclick="showAlert('Pusat Bantuan')"><i class="fa-solid fa-circle-info"></i> Bantuan</button>
+                <button class="sidebar-item" onclick="showAlert('Dukungan Tim')"><i class="fa-solid fa-comment-dots"></i> Dukungan</button>
+            </div>
+            <div class="sidebar-footer">
+                <button class="mode-switch-btn" onclick="switchToPassenger()">Mode penumpang</button>
+                <div style="display:flex; justify-content:center; gap:24px; color:#aaa; font-size:20px;">
+                    <i class="fa-brands fa-whatsapp" onclick="showAlert('WhatsApp')"></i>
+                    <i class="fa-brands fa-facebook-f" onclick="showAlert('Facebook')"></i>
+                    <i class="fa-brands fa-instagram" onclick="showAlert('Instagram')"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Halaman Profil Pengemudi -->
+        <div class="profile-page" id="profilePage">
+            <div class="profile-header">
+                <button onclick="closeProfilePage()" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer;"><i class="fa-solid fa-arrow-left"></i></button>
+                <h2 style="font-size: 18px; text-transform: uppercase;">HELMI</h2>
+            </div>
+            <div class="profile-body">
+                <div class="profile-card" onclick="showAlert('Kelola Dompet')">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h3 style="font-size: 16px; margin-bottom: 4px;">Dompet</h3>
+                            <p style="font-size: 13px; color: #888;">Tambah dana saldo, bonus, dll.</p>
+                        </div>
+                        <i class="fa-solid fa-wallet" style="color: #ccff00; font-size: 20px;"></i>
+                    </div>
+                </div>
+                <div class="profile-card">
+                    <h3 style="font-size: 16px; margin-bottom: 6px;">Kendaraan saya</h3>
+                    <div style="display:flex; align-items:center; gap: 10px; font-size: 13px; color: #ccc;">
+                        <i class="fa-solid fa-motorcycle" style="font-size: 24px; color: #ccff00;"></i>
+                        <div>
+                            <strong>Honda PCX HYBRID SH</strong><br>
+                            <span style="color: #888;">Hitam • 2023 • D4990SVC</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+        <!-- Header Driver -->
+        <div class="header">
+            <div class="header-left">
+                <button class="menu-btn" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <div class="status-pill" onclick="toggleStatus()">
+                    <span class="online-text" id="statusText">Online</span>
+                    <div class="pill-badge" id="statusBadge">Online</div>
+                </div>
+            </div>
+            <button class="settings-btn" onclick="showAlert('Pengaturan Cepat')"><i class="fa-solid fa-gear"></i></button>
+        </div>
+
+        <div class="balance-banner" onclick="showAlert('Top Up Saldo')">
+            <div>Saldo kurang. Tambah dana</div>
+            <i class="fa-solid fa-chevron-right"></i>
+        </div>
+
+        <!-- Content Driver -->
+        <div class="content">
+            <div class="tab-content active" id="tab-transport">
+                
+                <!-- Radar Wrapper (Tampil saat tidak ada orderan) -->
+                <div class="radar-wrapper" id="radarSection" style="display: flex;">
+                    <div class="radar-text">Tunggu, order akan segera muncul di sini...</div>
+                    <div class="radar-circle c1"></div>
+                    <div class="radar-circle c2"></div>
+                    <div class="radar-circle c3"></div>
+                    <div class="radar-circle c4"></div>
+                    <div class="radar-sweep"></div>
+                    <div class="radar-center-dot"></div>
+                </div>
+
+                <!-- List Orderan Masuk (Sembunyi saat radar aktif) -->
+                <div class="order-list" id="orderListSection" style="display: none;">
+                    <div class="order-card" id="cardOrderDhea">
+                        <button class="order-options-btn" onclick="skipOrder()"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                        <div class="order-header">
+                            <div class="order-avatar">
+                                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100" alt="Dhea">
+                            </div>
+                            <div style="flex:1;">
+                                <div class="order-user-name" id="orderName">Dhea</div>
+                                <div class="order-rating"><i class="fa-solid fa-star"></i> 5.0 (778) • <span id="orderDist">~5,1 km</span></div>
+                            </div>
+                        </div>
+                        <div class="order-price" id="orderPrice">Rp12.900</div>
+                        <div class="order-route">
+                            <span id="orderDest">PT Gelindo Garmentama (Cangkuang Kulon, Bandung)</span><br>
+                            <span class="dest" id="orderSubDest">Jl. Kulalet</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-performa">
+                <div class="performa-container">
+                    <div class="performa-header-title">Rendah <span style="font-size:12px; color:#888;">Prioritas</span></div>
+                    <div class="performa-card">
+                        <div><h3>5.00 <i class="fa-solid fa-star" style="color: #ffc107;"></i></h3><p style="color:#888; font-size:13px;">Peringkat</p></div>
+                        <i class="fa-solid fa-chevron-right" style="color: #777;"></i>
+                    </div>
+                    <div class="performa-card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                        <p style="color: #888; font-size: 13px;">Pendapatan hari ini</p>
+                        <div class="earnings-amount">Rp0</div>
+                        <button class="btn-target" onclick="showAlert('Tambah target harian')"><i class="fa-solid fa-plus"></i> Tambahkan target harian</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-nav">
+            <button class="nav-item active" onclick="switchDriverTab('transport', this)">
+                <i class="fa-solid fa-bars-staggered"></i>
+                <span>Permintaan transportasi</span>
+            </button>
+            <button class="nav-item" onclick="switchDriverTab('performa', this)">
+                <i class="fa-solid fa-border-all"></i>
+                <span>Performa</span>
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ---------------- PASSENGER APP MODE ---------------- -->
+    <div id="passengerApp">
+        <div class="passenger-top-bar">
+            <button class="passenger-menu-btn" onclick="switchToDriver()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="location-pill">
+                <i class="fa-solid fa-location-dot" style="color:#ccff00;"></i> Jl. Terusan Kopo-Soreang 400
+            </div>
+            <button class="passenger-menu-btn" onclick="showAlert('Menu Penumpang')"><i class="fa-solid fa-bars"></i></button>
+        </div>
+
+        <div id="passengerMap"></div>
+
+        <div class="passenger-bottom-sheet">
+            <div class="service-tabs">
+                <button class="service-tab active" id="tabMotor" onclick="setService('inMotor', 'Rp12.900')">
+                    <i class="fa-solid fa-motorcycle"></i> inMotor
+                </button>
+                <button class="service-tab" id="tabKurir" onclick="setService('Kurir Paket', 'Rp15.000')">
+                    <i class="fa-solid fa-box"></i> Kurir
+                </button>
+            </div>
+
+            <div class="search-box-pass">
+                <i class="fa-solid fa-magnifying-glass" style="color:#aaa;"></i>
+                <input type="text" id="passDestInput" value="Festival Citylink, Bandung" placeholder="Mau pergi kemana hari ini?">
+            </div>
+
+            <div class="price-offer-box">
+                <label>Tawaran Tarif Anda (Rp)</label>
+                <input type="text" id="passPriceInput" value="12.900">
+            </div>
+
+            <button class="btn-order-now" onclick="submitPassengerOrder()">Pesan Sekarang</button>
+        </div>
+    </div>
+
+    <!-- Modal Notifikasi -->
+    <div class="custom-modal" id="customModal">
+        <div class="modal-box">
+            <h3 id="modalTitle">Informasi</h3>
+            <p id="modalDesc">Deskripsi.</p>
+            <button class="modal-btn-close" onclick="closeModal()">Tutup</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- MapLibre GL JS -->
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script>
+    // Peta Penumpang
+    const passengerMap = new maplibregl.Map({
+        container: 'passengerMap',
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        center: [107.57, -6.97],
+        zoom: 14,
+        attributionControl: false
+    });
+
+    let selectedService = 'inMotor';
+
+    function setService(serviceName, defaultPrice) {
+        selectedService = serviceName;
+        document.getElementById('tabMotor').classList.toggle('active', serviceName === 'inMotor');
+        document.getElementById('tabKurir').classList.toggle('active', serviceName === 'Kurir Paket');
+        document.getElementById('passPriceInput').value = defaultPrice.replace('Rp', '');
+    }
+
+    // Navigasi Mode
+    function switchToPassenger() {
+        document.getElementById('driverApp').style.display = 'none';
+        document.getElementById('passengerApp').style.display = 'flex';
+        setTimeout(() => { passengerMap.resize(); }, 200);
+    }
+
+    function switchToDriver() {
+        document.getElementById('passengerApp').style.display = 'none';
+        document.getElementById('driverApp').style.display = 'flex';
+    }
+
+    // Penumpang Membuat Pesanan & Masuk ke Driver
+    function submitPassengerOrder() {
+        const dest = document.getElementById('passDestInput').value;
+        const price = document.getElementById('passPriceInput').value;
+
+        // Update data orderan di sisi Driver
+        document.getElementById('orderName').innerText = selectedService === 'inMotor' ? "Siti Rahma" : "Budi Kurir";
+        document.getElementById('orderPrice').innerText = "Rp" + price;
+        document.getElementById('orderDest').innerText = dest;
+        document.getElementById('orderSubDest').innerText = "Titik Jemput: Jl. Terusan Kopo-Soreang";
+
+        // Ubah state driver: Sembunyikan radar, tampilkan orderan masuk
+        document.getElementById('radarSection').style.display = 'none';
+        document.getElementById('orderListSection').style.display = 'flex';
+
+        showAlert('Pesanan berhasil dibuat! Anda dialihkan ke Mode Driver untuk melihat orderan masuk.');
+        switchToDriver();
+    }
+
+    // Tombol Skip / Lewati Orderan (Kembali ke Radar)
+    function skipOrder() {
+        document.getElementById('orderListSection').style.display = 'none';
+        document.getElementById('radarSection').style.display = 'flex';
+        showAlert('Orderan dilewati (Skip). Memulai pencarian radar kembali...');
+    }
+
+    // Driver Tab Switch
+    function switchDriverTab(tabName, element) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        document.getElementById('tab-' + tabName).classList.add('active');
+        element.classList.add('active');
+    }
+
+    // Sidebar & Profile
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('overlay').classList.toggle('show');
+    }
+
+    function openProfilePage() {
+        toggleSidebar();
+        document.getElementById('profilePage').classList.add('open');
+    }
+
+    function closeProfilePage() {
+        document.getElementById('profilePage').classList.remove('open');
+    }
+
+    let isOnline = true;
+    function toggleStatus() {
+        isOnline = !isOnline;
+        document.getElementById('statusText').innerText = isOnline ? "Online" : "Offline";
+        document.getElementById('statusBadge').innerText = isOnline ? "Online" : "Offline";
+        document.getElementById('statusBadge').style.backgroundColor = isOnline ? "#ccff00" : "#444";
+    }
+
+    function showAlert(msg) {
+        document.getElementById('modalDesc').innerText = msg;
+        document.getElementById('customModal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('customModal').classList.remove('active');
+    }
+</script>
+
+</body>
+</html>
